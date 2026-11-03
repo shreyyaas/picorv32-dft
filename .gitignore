@@ -1,0 +1,7 @@
+.venv/
+third_party/
+*.vcd
+*.fst
+*.vvp
+__pycache__/
+results/smoke/
