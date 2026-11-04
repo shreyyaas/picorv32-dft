@@ -20,7 +20,7 @@ fi
 step "1/6 apt prerequisites"
 sudo apt-get update -qq
 sudo apt-get install -y -qq git curl ca-certificates build-essential \
-     python3 python3-venv python3-pip cargo
+     python3 python3-venv python3-pip cargo pkg-config libssl-dev
 
 step "2/6 OSS CAD Suite (Yosys, Icarus, Verilator, GTKWave)"
 if [ -x "$EDA_HOME/oss-cad-suite/bin/yosys" ]; then
@@ -48,8 +48,18 @@ step "4/6 SKY130 PDK via ciel (PDK_ROOT=$PDK_ROOT)"
 CIEL="$REPO_ROOT/.venv/bin/ciel"
 HASH="$SKY130_PDK_HASH"
 if [ -z "$HASH" ]; then
-  # ls-remote lists builds newest first; take the first commit hash shown
-  HASH="$("$CIEL" ls-remote --pdk-family sky130 | grep -oE '[0-9a-f]{40}' | head -1)"
+  # Piped, ls-remote prints one version name per line, newest first.
+  # Capture it first: with `set -e -o pipefail` a failing grep inside a
+  # pipeline would end the script with no message at all.
+  LIST="$("$CIEL" ls-remote --pdk-family sky130)" || {
+    echo "ERROR: 'ciel ls-remote' failed (network or GitHub rate limit?)"; exit 1; }
+  HASH="${LIST%%$'\n'*}"   # first line, without a pipe (no SIGPIPE risk)
+  if [ -z "$HASH" ]; then
+    echo "ERROR: ciel listed no sky130 builds. Output was:"; printf '%s\n' "$LIST"
+    echo "Pick one by hand: .venv/bin/ciel ls-remote --pdk-family sky130"
+    echo "then set SKY130_PDK_HASH=<hash> in versions.env and re-run."
+    exit 1
+  fi
   echo ">>> Pin it: set SKY130_PDK_HASH=$HASH in versions.env"
 fi
 "$CIEL" enable --pdk-family sky130 "$HASH"
@@ -59,8 +69,10 @@ if command -v "$HOME/.cargo/bin/quaigh" >/dev/null; then
   echo "already installed: $("$HOME/.cargo/bin/quaigh" --version)"
 else
   cargo install --locked "quaigh@$QUAIGH_VERSION" || {
-    echo "cargo install failed. Your apt Rust may be too old; install rustup:"
-    echo "  curl https://sh.rustup.rs -sSf | sh    then re-run this script"; }
+    echo "cargo install failed. Read the first 'error' above:"
+    echo "  - mentions pkg-config / OpenSSL: sudo apt install pkg-config libssl-dev"
+    echo "  - mentions a required rustc version: install rustup"
+    echo "    (curl https://sh.rustup.rs -sSf | sh), then re-run this script"; }
 fi
 
 step "6/6 OpenROAD (scan insertion)"
