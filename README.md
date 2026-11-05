@@ -9,7 +9,7 @@ Every number in this repo is produced by a script and can be regenerated.
 | Step | What happens | Tool | Status |
 |---|---|---|---|
 | 1. Setup | Install tools, PDK, pinned PicoRV32 | OSS CAD Suite, ciel, Fault, Quaigh, OpenROAD | done |
-| 2. Baseline | Synthesise PicoRV32 to SKY130 cells; count cells, flops, area | Yosys | next |
+| 2. Baseline | Synthesise PicoRV32 to SKY130 cells; count cells, flops, area | Yosys | in progress |
 | 3. Scan insertion | Swap flops for scan flops, stitch 1 vs N chains; area overhead | OpenROAD `dft` / Fault `chain` | |
 | 4. ATPG | Stuck-at patterns on the scan-cut netlist; coverage, pattern count | Fault + Quaigh | |
 | 5. Verify | Gate-level scan shift/capture sim; patterns catch injected faults | Icarus Verilog | |
@@ -60,6 +60,24 @@ make check     # writes results/env.txt (tool versions + PDK files)
 make smoke     # Yosys maps PicoRV32 to SKY130 cells
 ```
 
+## Step 2: Baseline synthesis
+
+```bash
+make baseline    # results/baseline/summary.md
+```
+
+The baseline is PicoRV32 with its default parameters, synthesised to SKY130 HD
+at `tt_025C_1v80` with no DFT. Scan area overhead, coverage and test time are
+all measured against it. Choices made in `scripts/synth_baseline.sh`:
+
+- **Scan flops are excluded** (`dont_use *sdf*`), so the baseline cannot contain
+  scan cells by accident.
+- **Netlist clean-up for the DFT tools**: constant outputs get a tie cell each
+  (`hilomap`), output ports that share a net get a buffer (`insbuf`), and
+  `check -assert` stops the run if any net is undriven.
+- **Area is cross-checked**: the report re-adds every cell's Liberty area and
+  fails if the sum differs from Yosys's total.
+
 ## Repo layout
 
 ```
@@ -70,6 +88,8 @@ scripts/
   fetch_picorv32.sh clone PicoRV32 at the pinned commit
   check_env.sh      report tools/PDK -> results/env.txt
   smoke_synth.sh    toolchain smoke test
+  synth_baseline.sh step 2: baseline synthesis (writes results/baseline/)
+  baseline_report.py  cells, flops, area, flop breakdown -> summary.md/.json
 results/            measured outputs, committed with env.txt
 third_party/        PicoRV32 checkout (git-ignored)
 ```
