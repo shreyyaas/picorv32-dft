@@ -1,0 +1,26 @@
+# --- read: library first, so Yosys knows each cell's pin directions
+read_liberty -lib /home/shreyas/.ciel/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+read_verilog /home/shreyas/picorv32-dft/third_party/picorv32/picorv32.v
+hierarchy -check -top picorv32        # default parameters (see summary.md)
+
+# --- generic synthesis, flattened to one module
+synth -top picorv32 -flatten
+
+# --- technology mapping to SKY130 HD
+dfflibmap -liberty /home/shreyas/.ciel/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -dont_use *sdf* -dont_use *lpflow* -dont_use *probe*     # flip-flops
+abc -liberty /home/shreyas/.ciel/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -dont_use *sdf* -dont_use *lpflow* -dont_use *probe*           # combinational logic
+
+# --- netlist clean-up for the DFT tools that read it next
+setundef -zero                        # no 'x' constants left in the netlist
+splitnets                             # multi-bit wires -> single bits
+opt_clean -purge
+hilomap -hicell sky130_fd_sc_hd__conb_1 HI -locell sky130_fd_sc_hd__conb_1 LO
+opt_clean -purge                      # constants -> one tie cell per bit
+insbuf -buf sky130_fd_sc_hd__buf_4 A X
+opt_clean -purge                      # ports sharing a net -> buffer between them
+check -assert                         # stop if anything is undriven or shorted
+
+# --- reports and netlist
+tee -q -o /home/shreyas/picorv32-dft/results/baseline/stat.json stat -json -liberty /home/shreyas/.ciel/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+tee -q -o /home/shreyas/picorv32-dft/results/baseline/stat.txt  stat -liberty /home/shreyas/.ciel/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+write_verilog -noattr -nohex -nodec /home/shreyas/picorv32-dft/results/baseline/picorv32_syn.v
