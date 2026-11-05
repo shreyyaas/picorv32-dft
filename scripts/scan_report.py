@@ -114,6 +114,8 @@ def main():
         planned = planned_lengths(d / "openroad.log")
         if planned and planned != lengths:
             problems.append(f"{d.name}: traced lengths {lengths} != OpenROAD plan {planned}")
+        if len(chains) != n_req:
+            problems.append(f"{d.name}: asked for {n_req} chains, OpenROAD built {len(chains)}")
         if sum(flops.values()) != base_flops:
             problems.append(f"{d.name}: {sum(flops.values())} flops vs {base_flops} in baseline")
 

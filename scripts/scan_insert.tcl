@@ -5,6 +5,7 @@
 #   TECH_LEF LEF LIB   SKY130 HD technology LEF, cell LEF, Liberty
 #   NETLIST            baseline netlist from step 2
 #   MAX_CHAINS         number of scan chains to build
+#   MAX_LENGTH         ceil(flops / MAX_CHAINS), computed by scan_insert.sh
 #   OUT_DIR            where to write the scan netlist
 
 # --- load the library and the baseline netlist
@@ -18,7 +19,10 @@ link_design  picorv32
 create_clock -name clk -period 20 [get_ports clk]
 
 # --- 1. plan: N chains, never mixing clock domains (PicoRV32 has one anyway)
-set_dft_config -max_chains $::env(MAX_CHAINS) -clock_mixing no_mix
+# Both limits are needed: without -max_length OpenROAD silently caps chains
+# at 200 flops (ScanArchitect.cpp), so -max_chains 16 would still give 8.
+set_dft_config -max_chains $::env(MAX_CHAINS) -max_length $::env(MAX_LENGTH) \
+               -clock_mixing no_mix
 report_dft_config
 
 # --- 2. swap every flop for its scan version (before placement: cells grow)

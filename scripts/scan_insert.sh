@@ -20,10 +20,13 @@ OUT="$REPO_ROOT/results/scan"; mkdir -p "$OUT"
 command -v openroad >/dev/null || { echo "openroad not found: see README setup"; exit 1; }
 echo "OpenROAD $(openroad -version 2>/dev/null | head -1)"
 
+FLOPS=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['flops'])" "$BASE/summary.json")
+
 for N in ${CHAINS:-1 2 4 8 16}; do
+  MAX_LENGTH=$(( (FLOPS + N - 1) / N ))      # ceil(flops / chains)
   D="$OUT/chains_$N"; mkdir -p "$D"
   printf 'chains=%-3s ... ' "$N"
-  if MAX_CHAINS=$N NETLIST="$BASE/picorv32_syn.v" OUT_DIR="$D" \
+  if MAX_CHAINS=$N MAX_LENGTH=$MAX_LENGTH NETLIST="$BASE/picorv32_syn.v" OUT_DIR="$D" \
        openroad -exit -no_init -no_splash -log "$D/openroad.log" \
        "$REPO_ROOT/scripts/scan_insert.tcl" >/dev/null 2>&1; then
     echo "done"
