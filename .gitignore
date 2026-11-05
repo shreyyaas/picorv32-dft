@@ -5,5 +5,5 @@ third_party/
 *.vvp
 __pycache__/
 results/smoke/
-results/*/*.v
-results/*/*.log
+results/**/*.v
+results/**/*.log

@@ -9,8 +9,8 @@ Every number in this repo is produced by a script and can be regenerated.
 | Step | What happens | Tool | Status |
 |---|---|---|---|
 | 1. Setup | Install tools, PDK, pinned PicoRV32 | OSS CAD Suite, ciel, Fault, Quaigh, OpenROAD | done |
-| 2. Baseline | Synthesise PicoRV32 to SKY130 cells; count cells, flops, area | Yosys | in progress |
-| 3. Scan insertion | Swap flops for scan flops, stitch 1 vs N chains; area overhead | OpenROAD `dft` / Fault `chain` | |
+| 2. Baseline | Synthesise PicoRV32 to SKY130 cells; count cells, flops, area | Yosys | done |
+| 3. Scan insertion | Swap flops for scan flops, stitch 1 vs N chains; area overhead | OpenROAD `dft` / Fault `chain` | in progress |
 | 4. ATPG | Stuck-at patterns on the scan-cut netlist; coverage, pattern count | Fault + Quaigh | |
 | 5. Verify | Gate-level scan shift/capture sim; patterns catch injected faults | Icarus Verilog | |
 | 6. Logic BIST | LFSR/MISR around the chains; coverage vs ATPG, golden signature | own RTL + Fault sim | |
@@ -78,6 +78,27 @@ all measured against it. Choices made in `scripts/synth_baseline.sh`:
 - **Area is cross-checked**: the report re-adds every cell's Liberty area and
   fails if the sum differs from Yosys's total.
 
+## Step 3: Scan insertion
+
+```bash
+make scan        # results/scan/summary.md, one run per chain count
+```
+
+`scripts/scan_insert.tcl` runs OpenROAD's DFT module on the baseline netlist:
+`scan_replace` swaps every flop for its SKY130 scan version, a rough
+floorplan and global placement give each cell a position, and
+`execute_dft_plan` stitches the chains neighbour to neighbour. It runs for
+1, 2, 4, 8 and 16 chains.
+
+`scripts/scan_report.py` then:
+
+- recomputes area from the Liberty file and reports the overhead against the baseline;
+- traces every chain through the netlist (scan-in port → SCD → Q → SCD …) and saves
+  it in shift order to `chains_<N>/chains.json`, which steps 4–6 need;
+- checks that every flop was replaced and stitched exactly once, and that the traced
+  lengths match OpenROAD's own plan. The tracer was tested on OpenROAD's reference
+  scan netlists from its DFT test suite.
+
 ## Repo layout
 
 ```
@@ -90,6 +111,8 @@ scripts/
   smoke_synth.sh    toolchain smoke test
   synth_baseline.sh step 2: baseline synthesis (writes results/baseline/)
   baseline_report.py  cells, flops, area, flop breakdown -> summary.md/.json
+  scan_insert.sh/.tcl step 3: OpenROAD scan insertion (writes results/scan/)
+  scan_report.py      overhead, chains in shift order, consistency checks
 results/            measured outputs, committed with env.txt
 third_party/        PicoRV32 checkout (git-ignored)
 ```

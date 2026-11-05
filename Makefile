@@ -1,5 +1,5 @@
 # Each target runs one script. Run `source env.sh` once per shell first.
-.PHONY: setup fetch check smoke baseline clean
+.PHONY: setup fetch check smoke baseline scan clean
 
 setup:            ## install tools, PDK and PicoRV32 (one time)
 	./scripts/setup.sh
@@ -16,5 +16,8 @@ smoke: fetch      ## prove Yosys can map PicoRV32 to SKY130 cells
 baseline: fetch   ## step 2: synthesise PicoRV32 to SKY130 HD with no DFT
 	./scripts/synth_baseline.sh
 
+scan:             ## step 3: scan insertion with OpenROAD (1,2,4,8,16 chains)
+	./scripts/scan_insert.sh
+
 clean:            ## remove generated outputs (keeps tools and PDK)
-	rm -rf results/smoke results/baseline
+	rm -rf results/smoke results/baseline results/scan

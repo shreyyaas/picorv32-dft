@@ -41,7 +41,7 @@ def is_flop(cell):
 
 
 def parse_netlist(path):
-    """Yield (cell_type, {pin: net}) for every instance, and the output ports."""
+    """Return ([(cell_type, inst_name, {pin: net}), ...], set of output port bits)."""
     text = Path(path).read_text()
     outputs = set()
     for m in re.finditer(r"^\s*output\s+(\[(\d+):(\d+)\]\s*)?(\\?\S+?)\s*;", text, re.M):
@@ -52,10 +52,10 @@ def parse_netlist(path):
         else:
             outputs.add(name)
     insts = []
-    for m in re.finditer(rf"^\s*({PREFIX}\w+)\s+\S+\s*\((.*?)\);", text, re.M | re.S):
+    for m in re.finditer(rf"^\s*({PREFIX}\w+)\s+(\S+)\s*\((.*?)\);", text, re.M | re.S):
         pins = {p: n.strip().lstrip("\\").replace(" ", "")
-                for p, n in re.findall(r"\.(\w+)\(([^()]*)\)", m.group(2))}
-        insts.append((m.group(1), pins))
+                for p, n in re.findall(r"\.(\w+)\(([^()]*)\)", m.group(3))}
+        insts.append((m.group(1), m.group(2).lstrip("\\"), pins))
     return insts, outputs
 
 
@@ -85,7 +85,7 @@ def main():
         raise SystemExit(f"netlist has {len(insts)} instances, stat says {sum(by_type.values())}")
 
     # Where are the flops? Group each flop by the register its Q pin drives.
-    regs = Counter(register_name(p.get("Q", "?")) for c, p in insts if is_flop(c))
+    regs = Counter(register_name(p.get("Q", "?")) for c, _, p in insts if is_flop(c))
     groups = defaultdict(int)
     for reg, n in regs.items():
         if reg.startswith("cpuregs["):
@@ -99,7 +99,7 @@ def main():
 
     # Glue the clean-up commands added: tie cells and buffers in front of outputs
     ties = by_type.get(PREFIX + "conb_1", 0)
-    port_bufs = sum(1 for c, p in insts
+    port_bufs = sum(1 for c, _, p in insts
                     if c.startswith(PREFIX + "buf_") and p.get("X") in outputs)
 
     # Module parameters as written in the RTL (synthesis used the defaults)
